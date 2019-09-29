@@ -1,8 +1,10 @@
 library(tidyverse)
 library(data.table)
+library(viridis)
+library(scales)
 
 # Import and merge data
-folder <- '/Users/billysloan/Desktop/Data_Science/Projects/bc_tax/lf_data/'
+folder <- '/Users/billysloan/Desktop/Data_Science/Projects/bc_tax/'
 lf_data <- list.files(path = folder, pattern = '*.csv')
 
 lf_list <- lapply(lf_data, select = c('SURVYEAR', 'SURVMNTH', 'PROV', 'AGE_12', 'SEX', 
@@ -14,13 +16,11 @@ df <- rbindlist(lf_list)
 # Rename variables
 df <- rename(df, 'AGE' = 'AGE_12', 'EDUC' = 'EDUC90', 'YEAR' = 'SURVYEAR', 'MONTH' = 'SURVMNTH')
 
+# Set wages to correct scale
+df$HRLYEARN <- df$HRLYEARN / 100
+
 # Count NAs by variable
-total_na <- df %>%
-  summarize(YEAR_NAs = sum(is.na(YEAR)), MONTH_NAs = sum(is.na(MONTH)), PROV_NAs = sum(is.na(PROV)), 
-            AGE_NAs = sum(is.na(AGE)), SEX_NAs = sum(is.na(SEX)),
-            MARSTAT_NAs = sum(is.na(MARSTAT)), EDUC_NAs = sum(is.na(EDUC)),
-            TENURE_NAs = sum(is.na(TENURE)), HRLYEARN_NAs = sum(is.na(HRLYEARN)),
-            UNION_NAs = sum(is.na(UNION)), FIRMSIZE_NAs = sum(is.na(FIRMSIZE)))
+colSums(is.na(df))
 
 # TENURE, HRLYEARN, UNION, and FIRMSIZE are only variables with NAs
 # The latter three have the same number of NAs
@@ -42,17 +42,28 @@ cor(na_dist$HRLYEARN_NAs, na_dist$FIRMSIZE_NAs)
 na_dist %>%
   gather(Variable, Count, TENURE_NAs, HRLYEARN_NAs) %>%
   ggplot(aes(YEAR, Count, color = Variable)) +
-  geom_smooth()
+  geom_smooth(se = FALSE) +
+  scale_color_viridis(discrete = TRUE)
 
 range(na_dist$HRLYEARN_NAs)
 range(na_dist$TENURE_NAs)
 
 # Hence, removing NAs will not heavily skew monthly observations
 
-# Remove NAs
+# Remove NAs and confirm none remain
 df <- drop_na(df)
-
-# Confirm none remain
 sum(is.na(df))
+
+# Dummy variables
+df <- df %>%
+  mutate(BC = ifelse(PROV == 59, 1, 0),
+         married = ifelse(MARSTAT == 1, 1, 0),
+         post = ifelse(YEAR == 2008 & MONTH >= 7 | YEAR >= 2009, 1, 0),
+         male = ifelse(SEX == 1, 1, 0),
+         low_ed = ifelse(EDUC <= 1, 1, 0),
+         med_ed = ifelse(between(EDUC, 2, 4), 1, 0),
+         high_ed = ifelse(EDUC >= 5, 1, 0)
+         )
+
 
     
